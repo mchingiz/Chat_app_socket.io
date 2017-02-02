@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial; }
+      form#chat { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      form#nickname { padding: 3px; position: fixed; bottom: 40px; right:0; }
+      input#p { position: fixed; bottom: 45px; right:0; }
+      form#chat input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+      form#chat button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li.info { font-weight: bold; text-align: center}
+      #messages li.you { text-align: right}
+      #messages li.typing { font-style: italic; }
+      #messages li:nth-child(odd) { background: #eee; }
+    </style>
+  </head>
+  <body>
+
+    <ul id="messages"></ul>
+    <form id="nickname" action="">
+      <input id="n" autocomplete="off" /><button>Set nickname</button>
+    </form>
+    <input id="p" autocomplete="off" placeholder="Send private message to:" style="display:none"/>
+    <form id="chat" action="">
+      <input id="m" autocomplete="off" /><button>Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+    <script>
+      var socket = io();
+      var registered = false;
+      var typing = false;
+      var timeout;
+
+      $('form#nickname').submit(function(){
+        socket.emit('set nickname', $('#n').val());
+        registered = true;
+        $("form#nickname").remove();
+        $("input#p").css("display","block");
+        return false;
+      });
+
+      $('form#chat').submit(function(){
+
+        if(registered){
+
+          if( $('#p').val() ){
+            var to = $('#p').val();
+
+            socket.emit('private message', {
+              msg: $('#m').val(),
+              to: $('#p').val()
+            });
+          }else{
+            socket.emit('chat message', $('#m').val());
+            $('#messages').append($('<li class="you">').text("You: "+$('#m').val()));
+          }
+          $('#m').val('');
+          clearTimeout(timeout);
+          socket.emit('not typing');
+
+        }
+
+        return false;
+      });
+
+      $("input#m").keypress(function(){
+        if(registered && !$('#p').val()){
+          socket.emit('typing');
+
+          clearTimeout(timeout);
+          timeout = window.setTimeout(function(){
+            socket.emit('not typing');
+          },3000);
+        }
+      });
+
+      socket.on('typing', function(data){
+        if( $('#'+data.senderid).length==0 && registered ){
+          $('#messages').append($('<li class="typing" id="'+data.senderid+'">').text(data.msg));
+        }
+      });
+      socket.on('not typing', function(data){
+        $('li#'+data.senderid).remove();
+      });
+
+      socket.on('chat message', function(msg){
+        if(registered){
+          $('#messages').append($('<li>').text(msg));
+        }
+      });
+
+      socket.on('chat info', function(msg){
+        if(registered){
+          $('#messages').append($('<li class="info">').text(msg));
+        }
+      });
+
+    </script>
+
+  </body>
+</html>
